@@ -1,0 +1,349 @@
+<div class="ngx-dag-root">
+  @if (mergedOptions().showToolbar) {
+    <header class="toolbar">
+      <div class="toolbar-title">{{ graphTitle() || 'DAG' }}</div>
+      <div class="search">
+        <input
+          type="search"
+          placeholder="Search nodes..."
+          [value]="searchQuery()"
+          (input)="onSearchInput($event)"
+          (keydown.enter)="nextMatch()"
+        />
+        @if (searchMatches().length) {
+          <span class="search-count">{{ matchIndex() + 1 }}/{{ searchMatches().length }}</span>
+        }
+        <button type="button" class="icon-btn" title="Aa" disabled>Aa</button>
+        <button type="button" class="icon-btn" title="Ab" disabled>Ab</button>
+      </div>
+      <div class="tools">
+        @if (mergedOptions().editable) {
+          <button type="button" class="icon-btn" title="Undo" (click)="undo()" [disabled]="!store.canUndo()">↶</button>
+          <button type="button" class="icon-btn" title="Redo" (click)="redo()" [disabled]="!store.canRedo()">↷</button>
+        }
+        <button type="button" class="icon-btn" title="Zoom out" (click)="zoomOut()">−</button>
+        <button type="button" class="icon-btn" title="Fit" (click)="fitToContent()">⤢</button>
+        <button type="button" class="icon-btn" title="Zoom in" (click)="zoomIn()">+</button>
+        <button type="button" class="icon-btn" title="Center" (click)="center()">⊕</button>
+        <button type="button" class="icon-btn" title="Fullscreen" (click)="toggleFullscreen()">⛶</button>
+        <button type="button" class="icon-btn" title="Trace path" (click)="traceOpen.set(!traceOpen())">⤷</button>
+        @if (mergedOptions().editable) {
+          <button type="button" class="icon-btn" title="Add node" (click)="addSelectedChild()">＋</button>
+        }
+        @if (mergedOptions().showSettings) {
+          <button type="button" class="icon-btn" title="Settings" (click)="toggleSettings()">⚙</button>
+        }
+      </div>
+    </header>
+  }
+
+  <div
+    class="stage"
+    #stage
+    [class.minimap-br]="minimapPos() === 'bottom-right'"
+    [class.minimap-tl]="minimapPos() === 'top-left'"
+    [class.minimap-tr]="minimapPos() === 'top-right'"
+  >
+    <svg
+      #svg
+      class="canvas"
+      [attr.viewBox]="viewBoxString()"
+      (wheel)="onWheel($event)"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointerleave)="onPointerUp()"
+    >
+      <defs>
+        <marker id="ngx-dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ngx-dag-edge, #c4cad6)" />
+        </marker>
+        <marker id="ngx-dag-arrow-trace" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ngx-dag-trace, #10b981)" />
+        </marker>
+      </defs>
+
+      @for (edge of renderEdges(); track edge.id) {
+        <path
+          class="edge"
+          [class.flow]="mergedOptions().flowEdges || edgeFlowing(edge)"
+          [class.done]="edgeDone(edge)"
+          [class.traced]="isTracedEdge(edge.id)"
+          [attr.d]="edge.path"
+          [attr.marker-end]="mergedOptions().showArrows ? (isTracedEdge(edge.id) ? 'url(#ngx-dag-arrow-trace)' : 'url(#ngx-dag-arrow)') : null"
+          (click)="selectEdge(edge, $event)"
+        />
+        @if (edge.label) {
+          <text class="edge-label" [attr.x]="edge.labelX" [attr.y]="edge.labelY">{{ edge.label }}</text>
+        }
+      }
+
+      @for (node of renderNodes(); track node.id) {
+        <foreignObject
+          [attr.x]="node.x"
+          [attr.y]="node.y"
+          [attr.width]="node.width"
+          [attr.height]="node.height"
+        >
+          <div
+            class="node-card lod-{{ lod() }} status-{{ statusOf(node.id) }}"
+            [class.selected]="selectedId() === node.id"
+            [class.match]="isMatch(node.id)"
+            [class.traced]="isTracedNode(node.id)"
+            [class.expanded]="isExpanded(node.id)"
+            (click)="selectNode(node, $event)"
+          >
+            <div class="node-head">
+              <div class="icon" [style.background]="node.accent || 'var(--ngx-dag-accent, #7c5cff)'">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="2" y="2" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="6.25" y="2" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="10.5" y="2" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="2" y="6.25" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="6.25" y="6.25" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="10.5" y="6.25" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="2" y="10.5" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="6.25" y="10.5" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                  <rect x="10.5" y="10.5" width="3.5" height="3.5" rx="0.5" fill="#fff" />
+                </svg>
+              </div>
+              <div class="copy">
+                <div class="label">{{ node.label }}</div>
+                @if (lod() !== 'far') {
+                  <div class="sub">
+                    @if (statusOf(node.id) === 'running') {
+                      {{ runOf(node.id)?.message || 'Processing...' }}
+                    } @else {
+                      {{ node.subtitle }}
+                    }
+                  </div>
+                }
+              </div>
+              <div class="head-actions">
+                @if (statusOf(node.id) === 'success') {
+                  <span class="badge ok" title="Success">✓</span>
+                }
+                @if (statusOf(node.id) === 'running') {
+                  <span class="badge run">{{ progressPct(node.id) }}%</span>
+                }
+                @if (statusOf(node.id) === 'pending') {
+                  <span class="badge wait">⏱</span>
+                }
+                @if (statusOf(node.id) === 'failed') {
+                  <span class="badge fail">!</span>
+                }
+                <button type="button" class="icon-btn tiny" title="Expand details" (click)="toggleNodeExpand(node.id, $event)">⛶</button>
+              </div>
+            </div>
+
+            @if (isExpanded(node.id) && lod() === 'near') {
+              <div class="node-body">
+                @if (detailTemplate(); as tpl) {
+                  <ng-container [ngTemplateOutlet]="tpl" [ngTemplateOutletContext]="{ $implicit: node }" />
+                } @else {
+                  @let blocks = blocksOf(node);
+                  @if (!blocks.length) {
+                    <div class="muted">No additional details</div>
+                  }
+                  @for (block of blocks; track $index) {
+                    @switch (block.type) {
+                      @case ('text') {
+                        <p class="block-text" [class.muted]="block.muted" [class.bold]="block.bold">{{ block.text }}</p>
+                      }
+                      @case ('html') {
+                        <div class="block-html" [innerHTML]="block.html"></div>
+                      }
+                      @case ('image') {
+                        <img [src]="block.src" [alt]="block.alt || ''" [style.height.px]="block.height || 96" />
+                      }
+                      @case ('keyValue') {
+                        <dl class="kv">
+                          @for (row of kvItems(block.items); track row.key) {
+                            <div class="kv-row">
+                              <dt>{{ row.key }}</dt>
+                              <dd>{{ row.value }}</dd>
+                            </div>
+                          }
+                        </dl>
+                      }
+                      @case ('table') {
+                        <table>
+                          @if (block.columns; as cols) {
+                            <thead>
+                              <tr>
+                                @for (c of cols; track c) {
+                                  <th>{{ c }}</th>
+                                }
+                              </tr>
+                            </thead>
+                          }
+                          <tbody>
+                            @for (row of block.rows; track $index) {
+                              <tr>
+                                @for (cell of row; track $index) {
+                                  <td>{{ cell }}</td>
+                                }
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      }
+                      @case ('list') {
+                        @if (block.ordered) {
+                          <ol>
+                            @for (item of block.items; track item) {
+                              <li>{{ item }}</li>
+                            }
+                          </ol>
+                        } @else {
+                          <ul>
+                            @for (item of block.items; track item) {
+                              <li>{{ item }}</li>
+                            }
+                          </ul>
+                        }
+                      }
+                      @case ('link') {
+                        <a [href]="block.href" (click)="onLink(node.id, block.href, $event)">{{ block.label || block.href }}</a>
+                      }
+                      @case ('website') {
+                        <a [href]="block.src" target="_blank" rel="noreferrer">{{ block.title || block.src }}</a>
+                      }
+                      @case ('video') {
+                        <a [href]="block.src" target="_blank" rel="noreferrer">{{ block.title || 'Open video' }}</a>
+                      }
+                      @case ('form') {
+                        <form (submit)="onFormSubmit(node.id, $event)">
+                          @for (field of block.fields; track field.name) {
+                            <label>
+                              {{ field.label || field.name }}
+                              <input [name]="field.name" [type]="field.type === 'textarea' ? 'text' : field.type || 'text'" [placeholder]="field.placeholder || ''" />
+                            </label>
+                          }
+                          <button type="submit">{{ block.submitLabel || 'Submit' }}</button>
+                        </form>
+                      }
+                    }
+                  }
+                }
+              </div>
+            }
+
+            @if (childCountOf(node.id) > 0 && lod() !== 'far') {
+              <button
+                type="button"
+                class="chip"
+                [class.plus]="isChildrenCollapsed(node.id)"
+                (click)="toggleChildren(node.id, $event)"
+                [title]="descendantCountOf(node.id) + ' descendants'"
+              >
+                @if (isChildrenCollapsed(node.id)) {
+                  + {{ childCountOf(node.id) }}
+                } @else {
+                  −
+                }
+              </button>
+            }
+          </div>
+        </foreignObject>
+      }
+    </svg>
+
+    @if (mergedOptions().showMinimap) {
+      <button type="button" class="minimap" (click)="onMinimapClick($event)">
+        <svg [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height">
+          @for (n of renderNodes(); track n.id) {
+            <rect [attr.x]="n.x" [attr.y]="n.y" [attr.width]="n.width" [attr.height]="n.height" rx="4" [attr.fill]="n.accent || '#7c5cff'" />
+          }
+          <rect
+            class="indicator"
+            [attr.x]="viewBox().x"
+            [attr.y]="viewBox().y"
+            [attr.width]="viewBox().w"
+            [attr.height]="viewBox().h"
+          />
+        </svg>
+      </button>
+    }
+
+    <div class="count">{{ visibleNodeCount() }} / {{ totalNodeCount() }} nodes</div>
+
+    @if (settingsOpen()) {
+      <aside class="panel settings">
+        <header>
+          <strong>Settings</strong>
+          <button type="button" class="icon-btn" (click)="settingsOpen.set(false)">×</button>
+        </header>
+        <div class="section">LAYOUT</div>
+        <div class="dirs">
+          <button type="button" [class.on]="mergedOptions().direction === 'TB'" (click)="setDirection('TB')" title="Top to bottom">↓</button>
+          <button type="button" [class.on]="mergedOptions().direction === 'LR'" (click)="setDirection('LR')" title="Left to right">→</button>
+          <button type="button" [class.on]="mergedOptions().direction === 'BT'" (click)="setDirection('BT')" title="Bottom to top">↑</button>
+          <button type="button" [class.on]="mergedOptions().direction === 'RL'" (click)="setDirection('RL')" title="Right to left">←</button>
+        </div>
+        <label class="toggle"><span>Dark mode</span><input type="checkbox" [checked]="isDark()" (change)="patchOptions({ theme: isDark() ? 'light' : 'dark' })" /></label>
+        <label class="toggle"><span>Animate transitions</span><input type="checkbox" [checked]="mergedOptions().animate" (change)="patchOptions({ animate: !mergedOptions().animate })" /></label>
+        <label class="toggle"><span>Directed arrows</span><input type="checkbox" [checked]="mergedOptions().showArrows" (change)="patchOptions({ showArrows: !mergedOptions().showArrows })" /></label>
+        <label class="toggle"><span>Flowing edges</span><input type="checkbox" [checked]="mergedOptions().flowEdges" (change)="patchOptions({ flowEdges: !mergedOptions().flowEdges })" /></label>
+        <label class="toggle"><span>Border frame</span><input type="checkbox" [checked]="mergedOptions().bordered" (change)="patchOptions({ bordered: !mergedOptions().bordered })" /></label>
+        <label class="toggle"><span>Minimap</span><input type="checkbox" [checked]="mergedOptions().showMinimap" (change)="patchOptions({ showMinimap: !mergedOptions().showMinimap })" /></label>
+        <div class="section">NODES &amp; SPACING</div>
+        <label class="slider">Node width <b>{{ mergedOptions().nodeWidth }}px</b>
+          <input type="range" min="120" max="320" [value]="mergedOptions().nodeWidth" (input)="onGapInput('nodeWidth', $event)" />
+        </label>
+        <label class="slider">Node height <b>{{ mergedOptions().nodeHeight }}px</b>
+          <input type="range" min="40" max="120" [value]="mergedOptions().nodeHeight" (input)="onGapInput('nodeHeight', $event)" />
+        </label>
+        <label class="slider">Node gap <b>{{ mergedOptions().nodeGap }}px</b>
+          <input type="range" min="8" max="80" [value]="mergedOptions().nodeGap" (input)="onGapInput('nodeGap', $event)" />
+        </label>
+        <label class="slider">Layer gap <b>{{ mergedOptions().layerGap }}px</b>
+          <input type="range" min="40" max="180" [value]="mergedOptions().layerGap" (input)="onGapInput('layerGap', $event)" />
+        </label>
+      </aside>
+    }
+
+    @if (traceOpen()) {
+      <aside class="panel trace">
+        <header>
+          <strong>Trace path</strong>
+          <button type="button" class="icon-btn" (click)="traceOpen.set(false)">×</button>
+        </header>
+        <label>SOURCE
+          <select [value]="traceFrom()" (change)="setTraceFrom($event)">
+            <option value="">Select node...</option>
+            @for (n of store.nodes(); track n.id) {
+              <option [value]="n.id">{{ n.label || n.id }}</option>
+            }
+          </select>
+        </label>
+        <label>TARGET
+          <select [value]="traceTo()" (change)="setTraceTo($event)">
+            <option value="">Select node...</option>
+            @for (n of store.nodes(); track n.id) {
+              <option [value]="n.id">{{ n.label || n.id }}</option>
+            }
+          </select>
+        </label>
+        <div class="row">
+          <button type="button" class="ghost" (click)="clearTrace()">Clear</button>
+          <button type="button" class="primary green" (click)="applyTrace()">Trace</button>
+        </div>
+      </aside>
+    }
+  </div>
+
+  @if (showPropertyPanel() && selectedNode(); as node) {
+    <footer class="props">
+      <div>
+        <strong>{{ node.label || node.id }}</strong>
+        <span>{{ node.subtitle }}</span>
+      </div>
+      @if (mergedOptions().editable) {
+        <input [value]="node.label || ''" (change)="onLabelEdit(node.id, $event)" />
+        <button type="button" class="ghost" (click)="addChild(node.id, { label: 'Child' })">Add child</button>
+        <button type="button" class="ghost danger" (click)="deleteSelected()">Delete</button>
+      }
+    </footer>
+  }
+</div>

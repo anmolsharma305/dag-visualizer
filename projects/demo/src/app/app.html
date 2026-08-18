@@ -1,0 +1,25 @@
+<div class="page">
+  <header class="hero">
+    <div>
+      <h1>ETL Pipeline — small DAG example</h1>
+      <p>
+        6 nodes · 6 edges. A simple extract → clean/validate → transform → load → notify flow.
+        Expand a node to see its details, or press <strong>Run pipeline</strong> to simulate execution.
+      </p>
+    </div>
+    <div class="actions">
+      <button type="button" class="run" (click)="play()">Run pipeline</button>
+      <button type="button" (click)="pause()">Pause</button>
+      <button type="button" (click)="reset()">Reset</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <ngx-dag
+      [nodes]="nodes"
+      [edges]="edges"
+      [options]="options"
+      graphTitle="ETL Pipeline"
+    />
+  </div>
+</div>
