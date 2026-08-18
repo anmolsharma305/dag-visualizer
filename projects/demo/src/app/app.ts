@@ -14,11 +14,13 @@ export class App {
   readonly nodes = ETL_NODES;
   readonly edges = ETL_EDGES;
   readonly options: DagOptions = {
-    direction: 'TB',
+    direction: 'LR',
     showMinimap: true,
     flowEdges: true,
     theme: 'light',
-    defaultCollapseDepth: Infinity,
+    nodeGap: 40,
+    layerGap: 90,
+    defaultCollapseDepth: 1,
   };
 
   play(): void {

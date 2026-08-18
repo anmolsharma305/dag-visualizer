@@ -3,3 +3,9 @@ body {
   height: 100%;
   margin: 0;
 }
+
+body {
+  font-family: 'Plus Jakarta Sans', Inter, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #eef1f6;
+}

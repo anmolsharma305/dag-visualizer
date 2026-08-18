@@ -7,24 +7,35 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #eef1f6;
-  color: #111827;
-  font-family: Inter, Segoe UI, system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(99, 91, 255, 0.08), transparent 50%),
+    #eef1f6;
+  color: #0f172a;
+  font-family: 'Plus Jakarta Sans', Inter, 'Segoe UI', system-ui, sans-serif;
 }
 
 .hero {
-  padding: 16px 20px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 24px 12px;
 }
 
 .hero h1 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .hero p {
-  margin: 0 0 12px;
-  color: #4b5563;
-  max-width: 72ch;
+  margin: 0;
+  color: #64748b;
+  max-width: 68ch;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .actions {
@@ -33,21 +44,44 @@
 }
 
 .actions button {
-  border: 1px solid #d1d5db;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
   background: #fff;
-  border-radius: 8px;
-  padding: 8px 12px;
+  color: #334155;
+  border-radius: 10px;
+  padding: 9px 14px;
   cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.actions button:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.actions svg {
+  width: 14px;
+  height: 14px;
 }
 
 .actions .run {
-  background: #2563eb;
+  background: #635bff;
   color: #fff;
   border: 0;
+  box-shadow: 0 8px 20px rgba(99, 91, 255, 0.25);
+}
+
+.actions .run:hover {
+  background: #5149f0;
 }
 
 .stage {
   flex: 1;
   min-height: 0;
-  margin: 0 16px 16px;
+  margin: 0 20px 20px;
 }

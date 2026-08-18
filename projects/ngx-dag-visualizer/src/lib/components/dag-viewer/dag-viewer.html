@@ -3,39 +3,92 @@
     <header class="toolbar">
       <div class="toolbar-title">{{ graphTitle() || 'DAG' }}</div>
       <div class="search">
-        <input
-          type="search"
-          placeholder="Search nodes..."
-          [value]="searchQuery()"
-          (input)="onSearchInput($event)"
-          (keydown.enter)="nextMatch()"
-        />
+        <label class="search-field">
+          <ngx-dag-icon name="search" />
+          <input
+            type="search"
+            placeholder="Search nodes..."
+            [value]="searchQuery()"
+            (input)="onSearchInput($event)"
+            (keydown.enter)="nextMatch()"
+          />
+        </label>
         @if (searchMatches().length) {
           <span class="search-count">{{ matchIndex() + 1 }}/{{ searchMatches().length }}</span>
         }
-        <button type="button" class="icon-btn" title="Aa" disabled>Aa</button>
-        <button type="button" class="icon-btn" title="Ab" disabled>Ab</button>
+        <button
+          type="button"
+          class="icon-btn"
+          title="Match case"
+          [class.on]="searchCaseSensitive()"
+          (click)="toggleCaseSensitive()"
+        >
+          <ngx-dag-icon name="case" />
+        </button>
+        <button
+          type="button"
+          class="icon-btn"
+          title="Match whole word"
+          [class.on]="searchWholeWord()"
+          (click)="toggleWholeWord()"
+        >
+          <ngx-dag-icon name="word" />
+        </button>
       </div>
       <div class="tools">
         @if (mergedOptions().editable) {
-          <button type="button" class="icon-btn" title="Undo" (click)="undo()" [disabled]="!store.canUndo()">↶</button>
-          <button type="button" class="icon-btn" title="Redo" (click)="redo()" [disabled]="!store.canRedo()">↷</button>
+          <div class="tool-group">
+            <button type="button" class="icon-btn" title="Undo" (click)="undo()" [disabled]="!store.canUndo()">
+              <ngx-dag-icon name="undo" />
+            </button>
+            <button type="button" class="icon-btn" title="Redo" (click)="redo()" [disabled]="!store.canRedo()">
+              <ngx-dag-icon name="redo" />
+            </button>
+          </div>
         }
-        <button type="button" class="icon-btn" title="Zoom out" (click)="zoomOut()">−</button>
-        <button type="button" class="icon-btn" title="Fit" (click)="fitToContent()">⤢</button>
-        <button type="button" class="icon-btn" title="Zoom in" (click)="zoomIn()">+</button>
-        <button type="button" class="icon-btn" title="Center" (click)="center()">⊕</button>
-        <button type="button" class="icon-btn" title="Fullscreen" (click)="toggleFullscreen()">⛶</button>
-        <button type="button" class="icon-btn" title="Trace path" (click)="traceOpen.set(!traceOpen())">⤷</button>
-        @if (mergedOptions().editable) {
-          <button type="button" class="icon-btn" title="Add node" (click)="addSelectedChild()">＋</button>
-        }
-        @if (mergedOptions().showSettings) {
-          <button type="button" class="icon-btn" title="Settings" (click)="toggleSettings()">⚙</button>
-        }
+        <div class="tool-group">
+          <button type="button" class="icon-btn" title="Zoom out" (click)="zoomOut()">
+            <ngx-dag-icon name="zoom-out" />
+          </button>
+          <button type="button" class="icon-btn" title="Fit to screen" (click)="fitToContent()">
+            <ngx-dag-icon name="fit" />
+          </button>
+          <button type="button" class="icon-btn" title="Zoom in" (click)="zoomIn()">
+            <ngx-dag-icon name="zoom-in" />
+          </button>
+          <button type="button" class="icon-btn" title="Center" (click)="center()">
+            <ngx-dag-icon name="center" />
+          </button>
+          <button type="button" class="icon-btn" title="Fullscreen" (click)="toggleFullscreen()">
+            <ngx-dag-icon name="fullscreen" />
+          </button>
+        </div>
+        <div class="tool-group">
+          <button type="button" class="icon-btn" title="Trace path" (click)="traceOpen.set(!traceOpen())">
+            <ngx-dag-icon name="trace" />
+          </button>
+          @if (mergedOptions().editable) {
+            <button type="button" class="icon-btn" title="Add node" (click)="addSelectedChild()">
+              <ngx-dag-icon name="plus" />
+            </button>
+          }
+          <button type="button" class="icon-btn" title="Export JSON" (click)="exportGraph()">
+            <ngx-dag-icon name="download" />
+          </button>
+          <button type="button" class="icon-btn" title="Import JSON" (click)="openImport()">
+            <ngx-dag-icon name="upload" />
+          </button>
+          @if (mergedOptions().showSettings) {
+            <button type="button" class="icon-btn" title="Settings" (click)="toggleSettings()">
+              <ngx-dag-icon name="settings" />
+            </button>
+          }
+        </div>
       </div>
     </header>
   }
+
+  <input #fileInput type="file" accept="application/json" hidden (change)="onImportFile($event)" />
 
   <div
     class="stage"
@@ -121,18 +174,20 @@
               </div>
               <div class="head-actions">
                 @if (statusOf(node.id) === 'success') {
-                  <span class="badge ok" title="Success">✓</span>
+                  <span class="badge ok" title="Success"><ngx-dag-icon name="check" /></span>
                 }
                 @if (statusOf(node.id) === 'running') {
                   <span class="badge run">{{ progressPct(node.id) }}%</span>
                 }
                 @if (statusOf(node.id) === 'pending') {
-                  <span class="badge wait">⏱</span>
+                  <span class="badge wait" title="Waiting"><ngx-dag-icon name="clock" /></span>
                 }
                 @if (statusOf(node.id) === 'failed') {
-                  <span class="badge fail">!</span>
+                  <span class="badge fail" title="Failed"><ngx-dag-icon name="alert" /></span>
                 }
-                <button type="button" class="icon-btn tiny" title="Expand details" (click)="toggleNodeExpand(node.id, $event)">⛶</button>
+                <button type="button" class="icon-btn tiny" title="Expand details" (click)="toggleNodeExpand(node.id, $event)">
+                  <ngx-dag-icon name="expand" />
+                </button>
               </div>
             </div>
 
@@ -271,33 +326,73 @@
     @if (settingsOpen()) {
       <aside class="panel settings">
         <header>
-          <strong>Settings</strong>
-          <button type="button" class="icon-btn" (click)="settingsOpen.set(false)">×</button>
+          <div class="panel-title">
+            <span class="gear"><ngx-dag-icon name="settings" /></span>
+            <strong>Settings</strong>
+          </div>
+          <button type="button" class="icon-btn" title="Close" (click)="settingsOpen.set(false)">
+            <ngx-dag-icon name="close" />
+          </button>
         </header>
-        <div class="section">LAYOUT</div>
+
+        <p class="section">Layout</p>
         <div class="dirs">
-          <button type="button" [class.on]="mergedOptions().direction === 'TB'" (click)="setDirection('TB')" title="Top to bottom">↓</button>
-          <button type="button" [class.on]="mergedOptions().direction === 'LR'" (click)="setDirection('LR')" title="Left to right">→</button>
-          <button type="button" [class.on]="mergedOptions().direction === 'BT'" (click)="setDirection('BT')" title="Bottom to top">↑</button>
-          <button type="button" [class.on]="mergedOptions().direction === 'RL'" (click)="setDirection('RL')" title="Right to left">←</button>
+          <button type="button" [class.on]="mergedOptions().direction === 'TB'" (click)="setDirection('TB')" title="Top to bottom">
+            <span class="flow-icon tb"></span>
+          </button>
+          <button type="button" [class.on]="mergedOptions().direction === 'LR'" (click)="setDirection('LR')" title="Left to right">
+            <span class="flow-icon lr"></span>
+          </button>
+          <button type="button" [class.on]="mergedOptions().direction === 'BT'" (click)="setDirection('BT')" title="Bottom to top">
+            <span class="flow-icon bt"></span>
+          </button>
+          <button type="button" [class.on]="mergedOptions().direction === 'RL'" (click)="setDirection('RL')" title="Right to left">
+            <span class="flow-icon rl"></span>
+          </button>
         </div>
-        <label class="toggle"><span>Dark mode</span><input type="checkbox" [checked]="isDark()" (change)="patchOptions({ theme: isDark() ? 'light' : 'dark' })" /></label>
-        <label class="toggle"><span>Animate transitions</span><input type="checkbox" [checked]="mergedOptions().animate" (change)="patchOptions({ animate: !mergedOptions().animate })" /></label>
-        <label class="toggle"><span>Directed arrows</span><input type="checkbox" [checked]="mergedOptions().showArrows" (change)="patchOptions({ showArrows: !mergedOptions().showArrows })" /></label>
-        <label class="toggle"><span>Flowing edges</span><input type="checkbox" [checked]="mergedOptions().flowEdges" (change)="patchOptions({ flowEdges: !mergedOptions().flowEdges })" /></label>
-        <label class="toggle"><span>Border frame</span><input type="checkbox" [checked]="mergedOptions().bordered" (change)="patchOptions({ bordered: !mergedOptions().bordered })" /></label>
-        <label class="toggle"><span>Minimap</span><input type="checkbox" [checked]="mergedOptions().showMinimap" (change)="patchOptions({ showMinimap: !mergedOptions().showMinimap })" /></label>
-        <div class="section">NODES &amp; SPACING</div>
-        <label class="slider">Node width <b>{{ mergedOptions().nodeWidth }}px</b>
+
+        <div class="switch-list">
+          <label class="switch-row">
+            <span>Dark mode</span>
+            <input class="switch" type="checkbox" [checked]="isDark()" (change)="patchOptions({ theme: isDark() ? 'light' : 'dark' })" />
+          </label>
+          <label class="switch-row">
+            <span>Animate transitions</span>
+            <input class="switch" type="checkbox" [checked]="mergedOptions().animate" (change)="patchOptions({ animate: !mergedOptions().animate })" />
+          </label>
+          <label class="switch-row">
+            <span>Directed arrows</span>
+            <input class="switch" type="checkbox" [checked]="mergedOptions().showArrows" (change)="patchOptions({ showArrows: !mergedOptions().showArrows })" />
+          </label>
+          <label class="switch-row">
+            <span>Flowing edges</span>
+            <input class="switch" type="checkbox" [checked]="mergedOptions().flowEdges" (change)="patchOptions({ flowEdges: !mergedOptions().flowEdges })" />
+          </label>
+          <label class="switch-row">
+            <span>Border frame</span>
+            <input class="switch" type="checkbox" [checked]="mergedOptions().bordered" (change)="patchOptions({ bordered: !mergedOptions().bordered })" />
+          </label>
+          <label class="switch-row">
+            <span>Minimap</span>
+            <input class="switch" type="checkbox" [checked]="mergedOptions().showMinimap" (change)="patchOptions({ showMinimap: !mergedOptions().showMinimap })" />
+          </label>
+        </div>
+
+        <p class="section">Nodes &amp; spacing</p>
+        <label class="slider">
+          <span class="slider-head">Node width <b>{{ mergedOptions().nodeWidth }}px</b></span>
           <input type="range" min="120" max="320" [value]="mergedOptions().nodeWidth" (input)="onGapInput('nodeWidth', $event)" />
         </label>
-        <label class="slider">Node height <b>{{ mergedOptions().nodeHeight }}px</b>
+        <label class="slider">
+          <span class="slider-head">Node height <b>{{ mergedOptions().nodeHeight }}px</b></span>
           <input type="range" min="40" max="120" [value]="mergedOptions().nodeHeight" (input)="onGapInput('nodeHeight', $event)" />
         </label>
-        <label class="slider">Node gap <b>{{ mergedOptions().nodeGap }}px</b>
+        <label class="slider">
+          <span class="slider-head">Node gap <b>{{ mergedOptions().nodeGap }}px</b></span>
           <input type="range" min="8" max="80" [value]="mergedOptions().nodeGap" (input)="onGapInput('nodeGap', $event)" />
         </label>
-        <label class="slider">Layer gap <b>{{ mergedOptions().layerGap }}px</b>
+        <label class="slider">
+          <span class="slider-head">Layer gap <b>{{ mergedOptions().layerGap }}px</b></span>
           <input type="range" min="40" max="180" [value]="mergedOptions().layerGap" (input)="onGapInput('layerGap', $event)" />
         </label>
       </aside>
@@ -307,7 +402,9 @@
       <aside class="panel trace">
         <header>
           <strong>Trace path</strong>
-          <button type="button" class="icon-btn" (click)="traceOpen.set(false)">×</button>
+          <button type="button" class="icon-btn" title="Close" (click)="traceOpen.set(false)">
+            <ngx-dag-icon name="close" />
+          </button>
         </header>
         <label>SOURCE
           <select [value]="traceFrom()" (change)="setTraceFrom($event)">

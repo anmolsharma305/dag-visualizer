@@ -8,9 +8,24 @@
       </p>
     </div>
     <div class="actions">
-      <button type="button" class="run" (click)="play()">Run pipeline</button>
-      <button type="button" (click)="pause()">Pause</button>
-      <button type="button" (click)="reset()">Reset</button>
+      <button type="button" class="run" (click)="play()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" /></svg>
+        Run pipeline
+      </button>
+      <button type="button" (click)="pause()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
+          <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
+        </svg>
+        Pause
+      </button>
+      <button type="button" (click)="reset()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v5h5" />
+        </svg>
+        Reset
+      </button>
     </div>
   </header>
 

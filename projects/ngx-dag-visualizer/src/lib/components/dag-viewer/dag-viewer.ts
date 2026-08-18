@@ -14,6 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { DagIconComponent } from '../icons/dag-icon';
 import {
   DagContentBlock,
   DagContentEvent,
@@ -53,7 +54,7 @@ import { GraphStore } from '../../state/graph-store';
 @Component({
   selector: 'ngx-dag',
   exportAs: 'ngxDag',
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, DagIconComponent],
   templateUrl: './dag-viewer.html',
   styleUrl: './dag-viewer.css',
   host: {
@@ -61,6 +62,8 @@ import { GraphStore } from '../../state/graph-store';
     '[class.ngx-dag--dark]': 'isDark()',
     '[class.ngx-dag--bordered]': 'mergedOptions().bordered',
     '[class.ngx-dag--fullscreen]': 'isFullscreen()',
+    '[class.ngx-dag--vertical]': "mergedOptions().direction === 'TB' || mergedOptions().direction === 'BT'",
+    '[class.ngx-dag--horizontal]': "mergedOptions().direction === 'LR' || mergedOptions().direction === 'RL'",
     '(keydown)': 'onKeydown($event)',
     tabindex: '0',
   },
@@ -91,6 +94,8 @@ export class DagViewerComponent {
   readonly expandedIds = signal(new Set<string>());
   readonly panelOverrides = signal<Partial<DagOptions>>({});
   readonly searchQuery = signal('');
+  readonly searchCaseSensitive = signal(false);
+  readonly searchWholeWord = signal(false);
   readonly matchIndex = signal(0);
   readonly selectedId = signal<string | null>(null);
   readonly settingsOpen = signal(false);
@@ -109,6 +114,7 @@ export class DagViewerComponent {
 
   readonly stageEl = viewChild<ElementRef<HTMLElement>>('stage');
   readonly svgEl = viewChild<ElementRef<SVGSVGElement>>('svg');
+  readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   readonly mergedOptions = computed(() =>
     resolveOptions({ ...this.options(), ...this.panelOverrides() }),
@@ -165,16 +171,20 @@ export class DagViewerComponent {
   });
 
   readonly searchMatches = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
-    if (!q) {
+    const raw = this.searchQuery().trim();
+    if (!raw) {
       return [];
     }
-    return this.renderNodes().filter(
-      (n) =>
-        n.label.toLowerCase().includes(q) ||
-        (n.subtitle ?? '').toLowerCase().includes(q) ||
-        n.id.toLowerCase().includes(q),
-    );
+    const sensitive = this.searchCaseSensitive();
+    const whole = this.searchWholeWord();
+    const needle = sensitive ? raw : raw.toLowerCase();
+    return this.renderNodes().filter((n) => {
+      const fields = [n.label, n.subtitle ?? '', n.id];
+      return fields.some((field) => {
+        const hay = sensitive ? field : field.toLowerCase();
+        return whole ? hay === needle : hay.includes(needle);
+      });
+    });
   });
 
   readonly visibleNodeCount = computed(() => this.renderNodes().length);
@@ -375,6 +385,54 @@ export class DagViewerComponent {
     const value = (event.target as HTMLInputElement).value;
     this.searchQuery.set(value);
     this.matchIndex.set(0);
+  }
+
+  toggleCaseSensitive(): void {
+    this.searchCaseSensitive.update((v) => !v);
+    this.matchIndex.set(0);
+  }
+
+  toggleWholeWord(): void {
+    this.searchWholeWord.update((v) => !v);
+    this.matchIndex.set(0);
+  }
+
+  exportGraph(): void {
+    const blob = new Blob([JSON.stringify(this.toJSON(), null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'dag-graph.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  openImport(): void {
+    this.fileInput()?.nativeElement.click();
+  }
+
+  onImportFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result)) as GraphData;
+        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+          return;
+        }
+        this.fromJSON(data);
+      } catch {
+        /* ignore invalid JSON */
+      }
+      input.value = '';
+    };
+    reader.readAsText(file);
   }
 
   focusMatches(): void {
@@ -590,6 +648,12 @@ export class DagViewerComponent {
 
   fromJSON(data: GraphData): void {
     this.store.fromJSON(data);
+    const depth = this.mergedOptions().defaultCollapseDepth;
+    if (Number.isFinite(depth)) {
+      this.collapseToDepth(depth);
+    } else {
+      this.collapsedChildIds.set(new Set());
+    }
   }
 
   onWheel(event: WheelEvent): void {
