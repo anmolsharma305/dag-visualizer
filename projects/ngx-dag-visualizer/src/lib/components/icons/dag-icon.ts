@@ -22,6 +22,8 @@ export type DagIconName =
   | 'alert'
   | 'case'
   | 'word'
+  | 'chevron-up'
+  | 'chevron-down'
   | 'play'
   | 'pause'
   | 'reset';
@@ -141,6 +143,12 @@ export type DagIconName =
           <path d="M4 19h4" />
           <path d="M4 5h4" />
           <path d="M14 19V9l4 10 4-10v10" />
+        }
+        @case ('chevron-up') {
+          <path d="m18 15-6-6-6 6" />
+        }
+        @case ('chevron-down') {
+          <path d="m6 9 6 6 6-6" />
         }
         @case ('play') {
           <polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none" />

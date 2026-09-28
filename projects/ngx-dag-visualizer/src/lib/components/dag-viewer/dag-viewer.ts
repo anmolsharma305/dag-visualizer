@@ -27,6 +27,7 @@ import {
   DagNodeStatus,
   DagOptions,
   GraphData,
+  GraphPath,
   LayoutEdge,
   LayoutNode,
   LodLevel,
@@ -50,6 +51,21 @@ import { contentBlocksFor, expandedHeightFor, expandedWidthFor, kvItems } from '
 import { lerp } from '../../animation/easing';
 import { tween, TweenHandle } from '../../animation/tween';
 import { GraphStore } from '../../state/graph-store';
+
+const TRACE_STEP_MS = 220;
+
+type TraceStep = { type: 'node' | 'edge'; id: string };
+
+function buildTraceSteps(path: GraphPath): TraceStep[] {
+  const steps: TraceStep[] = [];
+  for (let i = 0; i < path.nodeIds.length; i++) {
+    steps.push({ type: 'node', id: path.nodeIds[i] });
+    if (i < path.edgeIds.length) {
+      steps.push({ type: 'edge', id: path.edgeIds[i] });
+    }
+  }
+  return steps;
+}
 
 @Component({
   selector: 'ngx-dag',
@@ -104,6 +120,9 @@ export class DagViewerComponent {
   readonly traceTo = signal('');
   readonly tracedNodeIds = signal(new Set<string>());
   readonly tracedEdgeIds = signal(new Set<string>());
+  readonly traceActive = computed(
+    () => this.tracedNodeIds().size > 0 || this.tracedEdgeIds().size > 0,
+  );
   readonly isFullscreen = signal(false);
   readonly renderNodes = signal<LayoutNode[]>([]);
   readonly renderEdges = signal<LayoutEdge[]>([]);
@@ -187,6 +206,19 @@ export class DagViewerComponent {
     });
   });
 
+  readonly searchActive = computed(() => this.searchQuery().trim().length > 0);
+
+  readonly matchedIds = computed(() => new Set(this.searchMatches().map((n) => n.id)));
+
+  readonly currentMatchId = computed((): string | null => {
+    const matches = this.searchMatches();
+    if (!matches.length) {
+      return null;
+    }
+    const i = this.matchIndex() % matches.length;
+    return matches[i].id;
+  });
+
   readonly visibleNodeCount = computed(() => this.renderNodes().length);
   readonly totalNodeCount = computed(() => this.store.nodes().length);
 
@@ -222,10 +254,12 @@ export class DagViewerComponent {
   private simTween: TweenHandle | null = null;
   private viewTween: TweenHandle | null = null;
   private simTimer: ReturnType<typeof setTimeout> | null = null;
+  private traceTimers: ReturnType<typeof setTimeout>[] = [];
   private didFit = false;
   private seeded = false;
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.clearTraceTimers());
     effect(() => {
       const nodes = this.nodes();
       const edges = this.edges();
@@ -314,6 +348,24 @@ export class DagViewerComponent {
     return childCount(id, this.adj());
   }
 
+  chipAnchor(node: LayoutNode): { x: number; y: number; width: number; height: number } {
+    const width = 80;
+    const height = 28;
+    const direction = this.mergedOptions().direction;
+    let cx = node.x + node.width;
+    let cy = node.y + node.height / 2;
+    if (direction === 'RL') {
+      cx = node.x;
+    } else if (direction === 'TB') {
+      cx = node.x + node.width / 2;
+      cy = node.y + node.height;
+    } else if (direction === 'BT') {
+      cx = node.x + node.width / 2;
+      cy = node.y;
+    }
+    return { x: cx - width / 2, y: cy - height / 2, width, height };
+  }
+
   descendantCountOf(id: string): number {
     return descendantCount(id, this.adj());
   }
@@ -385,16 +437,51 @@ export class DagViewerComponent {
     const value = (event.target as HTMLInputElement).value;
     this.searchQuery.set(value);
     this.matchIndex.set(0);
+    if (value.trim() && this.searchMatches().length) {
+      this.focusMatches();
+    }
+  }
+
+  onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.prevMatch();
+      } else {
+        this.nextMatch();
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.nextMatch();
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.prevMatch();
+    }
+  }
+
+  clearSearch(): void {
+    this.searchQuery.set('');
+    this.matchIndex.set(0);
   }
 
   toggleCaseSensitive(): void {
     this.searchCaseSensitive.update((v) => !v);
     this.matchIndex.set(0);
+    if (this.searchActive() && this.searchMatches().length) {
+      this.focusMatches();
+    }
   }
 
   toggleWholeWord(): void {
     this.searchWholeWord.update((v) => !v);
     this.matchIndex.set(0);
+    if (this.searchActive() && this.searchMatches().length) {
+      this.focusMatches();
+    }
   }
 
   exportGraph(): void {
@@ -454,6 +541,15 @@ export class DagViewerComponent {
     this.focusMatches();
   }
 
+  prevMatch(): void {
+    const matches = this.searchMatches();
+    if (!matches.length) {
+      return;
+    }
+    this.matchIndex.update((i) => (i - 1 + matches.length) % matches.length);
+    this.focusMatches();
+  }
+
   selectNode(node: LayoutNode, event?: Event): void {
     event?.stopPropagation();
     this.selectedId.set(node.id);
@@ -466,15 +562,34 @@ export class DagViewerComponent {
   }
 
   tracePath(fromId: string, toId: string): boolean {
+    this.clearTraceTimers();
     const path = findPath(this.store.edges(), fromId, toId);
     if (!path) {
       this.tracedNodeIds.set(new Set());
       this.tracedEdgeIds.set(new Set());
       return false;
     }
-    this.tracedNodeIds.set(new Set(path.nodeIds));
-    this.tracedEdgeIds.set(new Set(path.edgeIds));
+    this.tracedNodeIds.set(new Set());
+    this.tracedEdgeIds.set(new Set());
     this.focusNodeIds(path.nodeIds);
+
+    const steps = buildTraceSteps(path);
+    const reveal = (index: number): void => {
+      if (index >= steps.length) {
+        return;
+      }
+      const step = steps[index];
+      if (step.type === 'node') {
+        this.tracedNodeIds.update((set) => new Set(set).add(step.id));
+      } else {
+        this.tracedEdgeIds.update((set) => new Set(set).add(step.id));
+      }
+      if (index + 1 < steps.length) {
+        const timer = setTimeout(() => reveal(index + 1), TRACE_STEP_MS);
+        this.traceTimers.push(timer);
+      }
+    };
+    reveal(0);
     return true;
   }
 
@@ -492,10 +607,32 @@ export class DagViewerComponent {
   }
 
   clearTrace(): void {
+    this.clearTraceTimers();
     this.tracedNodeIds.set(new Set());
     this.tracedEdgeIds.set(new Set());
     this.traceFrom.set('');
     this.traceTo.set('');
+  }
+
+  isDimmedNode(id: string): boolean {
+    if (this.traceActive() && !this.isTracedNode(id)) {
+      return true;
+    }
+    if (this.searchActive() && !this.isSearchMatch(id)) {
+      return true;
+    }
+    return false;
+  }
+
+  isDimmedEdge(id: string): boolean {
+    return this.traceActive() && !this.isTracedEdge(id);
+  }
+
+  private clearTraceTimers(): void {
+    for (const timer of this.traceTimers) {
+      clearTimeout(timer);
+    }
+    this.traceTimers = [];
   }
 
   zoomIn(): void {
@@ -782,7 +919,16 @@ export class DagViewerComponent {
   }
 
   isMatch(id: string): boolean {
-    return this.searchMatches().some((n) => n.id === id);
+    return this.isSearchMatch(id);
+  }
+
+  isSearchMatch(id: string): boolean {
+    return this.searchActive() && this.matchedIds().has(id);
+  }
+
+  isCurrentMatch(id: string): boolean {
+    const current = this.currentMatchId();
+    return current !== null && id === current;
   }
 
   isTracedNode(id: string): boolean {

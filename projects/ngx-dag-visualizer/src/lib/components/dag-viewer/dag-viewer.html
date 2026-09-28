@@ -10,30 +10,53 @@
             placeholder="Search nodes..."
             [value]="searchQuery()"
             (input)="onSearchInput($event)"
-            (keydown.enter)="nextMatch()"
+            (keydown)="onSearchKeydown($event)"
           />
+          <div class="search-actions">
+            <button
+              type="button"
+              class="search-btn"
+              title="Match case"
+              [class.on]="searchCaseSensitive()"
+              (click)="toggleCaseSensitive()"
+            >
+              <ngx-dag-icon name="case" />
+            </button>
+            <button
+              type="button"
+              class="search-btn"
+              title="Match whole word"
+              [class.on]="searchWholeWord()"
+              (click)="toggleWholeWord()"
+            >
+              <ngx-dag-icon name="word" />
+            </button>
+            @if (searchActive()) {
+              @if (searchMatches().length) {
+                <span class="search-count">{{ matchIndex() + 1 }}/{{ searchMatches().length }}</span>
+                <button
+                  type="button"
+                  class="search-btn"
+                  title="Previous match"
+                  (click)="prevMatch()"
+                >
+                  <ngx-dag-icon name="chevron-up" />
+                </button>
+                <button
+                  type="button"
+                  class="search-btn"
+                  title="Next match"
+                  (click)="nextMatch()"
+                >
+                  <ngx-dag-icon name="chevron-down" />
+                </button>
+              }
+              <button type="button" class="search-btn" title="Clear search" (click)="clearSearch()">
+                <ngx-dag-icon name="close" />
+              </button>
+            }
+          </div>
         </label>
-        @if (searchMatches().length) {
-          <span class="search-count">{{ matchIndex() + 1 }}/{{ searchMatches().length }}</span>
-        }
-        <button
-          type="button"
-          class="icon-btn"
-          title="Match case"
-          [class.on]="searchCaseSensitive()"
-          (click)="toggleCaseSensitive()"
-        >
-          <ngx-dag-icon name="case" />
-        </button>
-        <button
-          type="button"
-          class="icon-btn"
-          title="Match whole word"
-          [class.on]="searchWholeWord()"
-          (click)="toggleWholeWord()"
-        >
-          <ngx-dag-icon name="word" />
-        </button>
       </div>
       <div class="tools">
         @if (mergedOptions().editable) {
@@ -122,6 +145,7 @@
           [class.flow]="mergedOptions().flowEdges || edgeFlowing(edge)"
           [class.done]="edgeDone(edge)"
           [class.traced]="isTracedEdge(edge.id)"
+          [class.dim]="isDimmedEdge(edge.id)"
           [attr.d]="edge.path"
           [attr.marker-end]="mergedOptions().showArrows ? (isTracedEdge(edge.id) ? 'url(#ngx-dag-arrow-trace)' : 'url(#ngx-dag-arrow)') : null"
           (click)="selectEdge(edge, $event)"
@@ -141,8 +165,10 @@
           <div
             class="node-card lod-{{ lod() }} status-{{ statusOf(node.id) }}"
             [class.selected]="selectedId() === node.id"
-            [class.match]="isMatch(node.id)"
+            [class.match]="isSearchMatch(node.id)"
+            [class.current]="isCurrentMatch(node.id)"
             [class.traced]="isTracedNode(node.id)"
+            [class.dim]="isDimmedNode(node.id)"
             [class.expanded]="isExpanded(node.id)"
             (click)="selectNode(node, $event)"
           >
@@ -284,7 +310,18 @@
               </div>
             }
 
-            @if (childCountOf(node.id) > 0 && lod() !== 'far') {
+          </div>
+        </foreignObject>
+        @if (childCountOf(node.id) > 0 && lod() !== 'far') {
+          @let anchor = chipAnchor(node);
+          <foreignObject
+            class="chip-anchor"
+            [attr.x]="anchor.x"
+            [attr.y]="anchor.y"
+            [attr.width]="anchor.width"
+            [attr.height]="anchor.height"
+          >
+            <div class="chip-wrap">
               <button
                 type="button"
                 class="chip"
@@ -298,17 +335,37 @@
                   −
                 }
               </button>
-            }
-          </div>
-        </foreignObject>
+            </div>
+          </foreignObject>
+        }
       }
     </svg>
 
     @if (mergedOptions().showMinimap) {
       <button type="button" class="minimap" (click)="onMinimapClick($event)">
         <svg [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height">
+          @for (edge of renderEdges(); track edge.id) {
+            <path
+              class="minimap-edge"
+              [class.traced]="isTracedEdge(edge.id)"
+              [class.dim]="isDimmedEdge(edge.id)"
+              [attr.d]="edge.path"
+            />
+          }
           @for (n of renderNodes(); track n.id) {
-            <rect [attr.x]="n.x" [attr.y]="n.y" [attr.width]="n.width" [attr.height]="n.height" rx="4" [attr.fill]="n.accent || '#7c5cff'" />
+            <rect
+              class="minimap-node"
+              [class.match]="isSearchMatch(n.id)"
+              [class.current]="isCurrentMatch(n.id)"
+              [class.traced]="isTracedNode(n.id)"
+              [class.dim]="isDimmedNode(n.id)"
+              [attr.x]="n.x"
+              [attr.y]="n.y"
+              [attr.width]="n.width"
+              [attr.height]="n.height"
+              rx="4"
+              [attr.fill]="n.accent || '#7c5cff'"
+            />
           }
           <rect
             class="indicator"
