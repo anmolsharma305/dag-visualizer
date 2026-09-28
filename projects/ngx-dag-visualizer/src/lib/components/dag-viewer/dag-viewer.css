@@ -8,6 +8,7 @@
   --ngx-dag-edge: #b7c0d0;
   --ngx-dag-edge-label: #7b8496;
   --ngx-dag-trace: #0f9f6e;
+  --ngx-dag-search: #f59e0b;
   --ngx-dag-accent: #635bff;
   --ngx-dag-node-bg: #ffffff;
   --ngx-dag-node-border: #e6eaf2;
@@ -31,7 +32,43 @@
   --ngx-dag-node-border: #2a3344;
   --ngx-dag-node-text: #eef2f7;
   --ngx-dag-node-subtitle: #93a0b5;
-  --ngx-dag-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --ngx-dag-shadow: none;
+}
+
+:host(.ngx-dag--dark) .panel {
+  box-shadow: none;
+}
+
+:host(.ngx-dag--dark) .search-field:focus-within {
+  box-shadow: none;
+}
+
+:host(.ngx-dag--dark) .node-card.selected,
+:host(.ngx-dag--dark) .node-card.match {
+  box-shadow: none;
+}
+
+:host(.ngx-dag--dark) .node-card.selected {
+  border-color: var(--ngx-dag-accent);
+}
+
+:host(.ngx-dag--dark) .node-card.current,
+:host(.ngx-dag--dark) .node-card.traced {
+  box-shadow: none;
+}
+
+:host(.ngx-dag--dark) .node-card.status-running {
+  box-shadow: -4px 0 0 #3b82f6;
+}
+
+:host(.ngx-dag--dark) .chip {
+  background: #1b2130;
+  color: #fff;
+  box-shadow: none;
+}
+
+:host(.ngx-dag--dark) .switch::after {
+  box-shadow: none;
 }
 
 :host(.ngx-dag--bordered) .ngx-dag-root {
@@ -62,11 +99,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(300px, 42vw);
+  flex: 1;
+  max-width: min(520px, 56vw);
+  min-width: 220px;
   border: 1px solid var(--ngx-dag-node-border);
   background: var(--ngx-dag-bg);
-  border-radius: 10px;
-  padding: 0 12px;
+  border-radius: 999px;
+  padding: 4px 6px 4px 14px;
   color: var(--ngx-dag-node-subtitle);
 }
 
@@ -75,16 +114,78 @@
   box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.12);
 }
 
-.search input {
+.search-field input {
   flex: 1;
-  min-width: 0;
+  min-width: 48px;
   border: 0;
   background: transparent;
   color: var(--ngx-dag-node-text);
-  padding: 8px 0;
+  padding: 6px 0;
   outline: none;
   font: inherit;
   font-size: 13px;
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.search-btn {
+  border: 0;
+  background: transparent;
+  color: var(--ngx-dag-node-subtitle);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.search-btn:hover:not(:disabled) {
+  background: rgba(99, 91, 255, 0.1);
+  color: var(--ngx-dag-node-text);
+}
+
+.search-btn.on {
+  background: rgba(99, 91, 255, 0.16);
+  color: var(--ngx-dag-accent);
+}
+
+.search-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.search-field ngx-dag-icon {
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+
+.search-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ngx-dag-node-subtitle);
+  padding: 0 4px;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .tools {
@@ -142,25 +243,6 @@
   font-size: 13px;
 }
 
-.search {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-}
-
-.search-field ngx-dag-icon {
-  font-size: 15px;
-  flex: 0 0 auto;
-}
-
-.search-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ngx-dag-node-subtitle);
-}
-
 :host(.ngx-dag--fullscreen) {
   background: var(--ngx-dag-bg);
 }
@@ -177,6 +259,10 @@
   position: relative;
   padding: 10px 12px;
   overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .label {
@@ -256,6 +342,10 @@
   stroke: var(--ngx-dag-edge);
   stroke-width: 1.6;
   stroke-dasharray: 6 6;
+  transition:
+    stroke 0.2s ease,
+    stroke-width 0.2s ease,
+    opacity 0.2s ease;
   cursor: pointer;
 }
 
@@ -269,8 +359,12 @@
 
 .edge.traced {
   stroke: var(--ngx-dag-trace);
-  stroke-width: 2.4;
+  stroke-width: 2.2;
   stroke-dasharray: none;
+}
+
+.edge.dim {
+  opacity: 0.4;
 }
 
 .edge-label {
@@ -289,13 +383,31 @@ foreignObject {
   overflow: visible;
 }
 
-.node-card.selected,
-.node-card.match {
+.node-card.selected {
   box-shadow: 0 0 0 2px var(--ngx-dag-accent);
 }
 
+.node-card.match {
+  border-color: var(--ngx-dag-search);
+  box-shadow: 0 0 0 1.5px rgba(245, 158, 11, 0.55);
+}
+
+.node-card.current {
+  border-color: var(--ngx-dag-search);
+  box-shadow:
+    0 0 0 2px var(--ngx-dag-search),
+    0 10px 24px rgba(245, 158, 11, 0.4);
+}
+
 .node-card.traced {
-  box-shadow: 0 0 0 2px var(--ngx-dag-trace);
+  border-color: var(--ngx-dag-trace);
+  box-shadow:
+    0 0 0 1.5px var(--ngx-dag-trace),
+    0 8px 24px rgba(15, 159, 110, 0.22);
+}
+
+.node-card.dim {
+  opacity: 0.4;
 }
 
 .node-card.status-pending {
@@ -415,35 +527,38 @@ foreignObject {
   font-weight: 600;
 }
 
+.chip-anchor {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.chip-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .chip {
-  position: absolute;
-  right: -10px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  pointer-events: auto;
   border: 1px solid var(--ngx-dag-node-border);
   background: var(--ngx-dag-node-bg);
   border-radius: 99px;
   min-width: 22px;
   height: 22px;
+  padding: 0 6px;
   font-size: 11px;
   font-weight: 650;
   font-family: inherit;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  z-index: 2;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-:host(.ngx-dag--vertical) .chip {
-  right: auto;
-  left: 50%;
-  top: auto;
-  bottom: -11px;
-  transform: translateX(-50%);
-}
-
-:host(.ngx-dag--dark) .chip {
-  background: #1b2130;
-  color: #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
 .chip.plus {
@@ -493,6 +608,54 @@ foreignObject {
 .minimap svg {
   width: 100%;
   height: 100%;
+}
+
+.minimap-edge {
+  fill: none;
+  stroke: var(--ngx-dag-edge);
+  stroke-width: 6;
+  transition:
+    stroke 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.minimap-edge.traced {
+  stroke: var(--ngx-dag-trace);
+  stroke-width: 7;
+}
+
+.minimap-edge.dim {
+  opacity: 0.13;
+}
+
+.minimap-node {
+  transition:
+    fill 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.minimap-node.match {
+  fill: var(--ngx-dag-search);
+  transform: scale(1.35);
+}
+
+.minimap-node.current {
+  fill: var(--ngx-dag-search);
+  stroke: #fff;
+  stroke-width: 1.25;
+  transform: scale(1.75);
+}
+
+.minimap-node.traced:not(.match):not(.current) {
+  fill: var(--ngx-dag-trace);
+  transform: scale(1.35);
+}
+
+.minimap-node.dim {
+  opacity: 0.13;
 }
 
 .minimap .indicator {
